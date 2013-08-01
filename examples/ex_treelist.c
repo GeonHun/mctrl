@@ -14,6 +14,11 @@
 #include <mCtrl/treelist.h>
 
 
+#ifndef CUSTOMIZE_EXAMPLE
+    #define CUSTOMIZE_EXAMPLE  4
+#endif
+
+
 #define IDC_TREELIST    100
 
 static HINSTANCE hInst;
@@ -105,6 +110,11 @@ SetupTreeList(void)
     MC_TLSUBITEM subitem;
     int i, j;
 
+    /* Use EXPLORER window theme class */
+    //SendMessage(hwndTreeList, CCM_SETWINDOWTHEME, 0, (LPARAM) L"Explorer");
+
+    subitem.fMask = MC_TLSIF_TEXT;
+
     col.fMask = MC_TLCF_TEXT | MC_TLCF_WIDTH | MC_TLCF_FORMAT;
     col.cx = 130;
     col.fmt = MC_TLFMT_LEFT;
@@ -119,14 +129,13 @@ SetupTreeList(void)
     col.pszText = _T("Mass");
     SendMessage(hwndTreeList, MC_TLM_INSERTCOLUMN, 3, (LPARAM) &col);
 
-    subitem.fMask = MC_TLSIF_TEXT;
-
     insertSun.hParent = MC_TLI_ROOT;
     insertSun.hInsertAfter = MC_TLI_LAST;
-    insertSun.item.fMask = MC_TLIF_TEXT | MC_TLIF_STATE;
+    insertSun.item.fMask = MC_TLIF_TEXT | MC_TLIF_STATE | MC_TLIF_PARAM;
     insertSun.item.pszText = _T("Sun");
     insertSun.item.state = MC_TLIS_EXPANDED;
     insertSun.item.stateMask = MC_TLIS_EXPANDED;
+    insertSun.item.lParam = 0;
     hSun = (MC_HTREELISTITEM) SendMessage(hwndTreeList, MC_TLM_INSERTITEM,
                     0, (LPARAM) &insertSun);
 
@@ -140,12 +149,13 @@ SetupTreeList(void)
 
     insertPlanet.hParent = hSun;
     insertPlanet.hInsertAfter = MC_TLI_LAST;
-    insertPlanet.item.fMask = MC_TLIF_TEXT;
+    insertPlanet.item.fMask = MC_TLIF_TEXT | MC_TLIF_PARAM;
 
     for(i = 0; i < SIZEOF_ARRAY(planets); i++) {
         MC_HTREELISTITEM hPlanet;
 
         insertPlanet.item.pszText = (TCHAR*) planets[i].pszName;
+        insertPlanet.item.lParam = i;
         hPlanet = (MC_HTREELISTITEM) SendMessage(hwndTreeList,
                     MC_TLM_INSERTITEM, 0, (LPARAM) &insertPlanet);
 
@@ -166,11 +176,12 @@ SetupTreeList(void)
 
         insertMoon.hParent = hPlanet;
         insertMoon.hInsertAfter = MC_TLI_LAST;
-        insertMoon.item.fMask = MC_TLIF_TEXT;
+        insertMoon.item.fMask = MC_TLIF_TEXT | MC_TLIF_PARAM;
         for(j = 0; j < planets[i].cMoons; j++) {
             MC_HTREELISTITEM hMoon;
 
             insertMoon.item.pszText = (TCHAR*) planets[i].pMoons[j].pszName;
+            insertMoon.item.lParam = 100 * i + j;
             hMoon = (MC_HTREELISTITEM) SendMessage(hwndTreeList,
                         MC_TLM_INSERTITEM, 0, (LPARAM) &insertMoon);
 
@@ -192,6 +203,104 @@ SetupTreeList(void)
     }
 }
 
+#if CUSTOMIZE_EXAMPLE == 1
+
+/* Force light gray background to texts of some items. */
+static UINT
+HandleCustomDraw(HWND hwnd, MC_NMTLCUSTOMDRAW* cd)
+{
+    switch(cd->nmcd.dwDrawStage) {
+        case CDDS_PREPAINT:
+            return CDRF_NOTIFYITEMDRAW;
+
+        case CDDS_ITEMPREPAINT:
+            if(cd->nmcd.lItemlParam % 2)
+                cd->clrTextBk = RGB(232, 232, 232);
+            break;
+    }
+
+    return 0;
+}
+
+#elif CUSTOMIZE_EXAMPLE == 2
+
+/* Force light gray background to texts of some SUBitems. */
+static UINT
+HandleCustomDraw(HWND hwnd, MC_NMTLCUSTOMDRAW* cd)
+{
+    switch(cd->nmcd.dwDrawStage) {
+        case CDDS_PREPAINT:
+            return CDRF_NOTIFYITEMDRAW;
+
+        case CDDS_ITEMPREPAINT:
+            return CDRF_NOTIFYSUBITEMDRAW;
+
+        case CDDS_ITEMPREPAINT | CDDS_SUBITEM:
+            if((cd->nmcd.lItemlParam % 2)  &&  !(cd->iSubItem % 2)) {
+                if(cd->nmcd.uItemState & CDIS_SELECTED)
+                    /* NOTE: Control has MC_TLS_FULLROWSELECT:
+                     * background of iSubItem[0] is expanded to other subitems!!! */
+                    cd->clrTextBk = RGB(127, 31, 31);
+                else
+                    cd->clrTextBk = RGB(232, 232, 232);
+            }
+            break;
+    }
+
+    return 0;
+}
+
+#elif CUSTOMIZE_EXAMPLE == 3
+
+/* Paint light gray background for whole item. */
+static UINT
+HandleCustomDraw(HWND hwnd, MC_NMTLCUSTOMDRAW* cd)
+{
+    switch(cd->nmcd.dwDrawStage) {
+        case CDDS_PREPAINT:
+            return CDRF_NOTIFYITEMDRAW;
+
+        case CDDS_ITEMPREPAINT:
+            if(cd->nmcd.lItemlParam % 2) {
+                COLORREF old;
+                old = SetBkColor(cd->nmcd.hdc, RGB(232, 232, 232));
+                ExtTextOut(cd->nmcd.hdc, 0, 0, ETO_OPAQUE, &cd->nmcd.rc, NULL, 0, NULL);
+                SetBkColor(cd->nmcd.hdc, old);
+            }
+            break;
+    }
+
+    return 0;
+}
+
+#elif CUSTOMIZE_EXAMPLE == 4
+
+static UINT
+HandleCustomDraw(HWND hwnd, MC_NMTLCUSTOMDRAW* cd)
+{
+    switch(cd->nmcd.dwDrawStage) {
+        case CDDS_PREPAINT:
+            return CDRF_NOTIFYITEMDRAW;
+
+        case CDDS_ITEMPREPAINT:
+            return CDRF_NOTIFYSUBITEMDRAW;
+
+        case CDDS_ITEMPREPAINT | CDDS_SUBITEM:
+            if(cd->nmcd.lItemlParam % 2) {
+                COLORREF old;
+                old = SetBkColor(cd->nmcd.hdc, RGB(232, 232, 232));
+                ExtTextOut(cd->nmcd.hdc, 0, 0, ETO_OPAQUE, &cd->nmcd.rc, NULL, 0, NULL);
+                SetBkColor(cd->nmcd.hdc, old);
+                return 0;
+            }
+            break;
+    }
+
+    return 0;
+}
+
+#endif
+
 
 /* Main window procedure */
 static LRESULT CALLBACK
@@ -204,6 +313,14 @@ WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                              LOWORD(lParam) - 10, HIWORD(lParam) - 10, SWP_NOZORDER);
             }
             return 0;
+
+        case WM_NOTIFY:
+        {
+            NMHDR* hdr = (NMHDR*) lParam;
+            if(hdr->hwndFrom == hwndTreeList  &&  hdr->code == NM_CUSTOMDRAW)
+                return HandleCustomDraw(hwndTreeList, (MC_NMTLCUSTOMDRAW*) lParam);
+            break;
+        }
 
         case WM_SETFONT:
             SendMessage(hwndTreeList, uMsg, wParam, lParam);
